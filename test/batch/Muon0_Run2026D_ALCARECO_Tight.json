@@ -1,0 +1,15 @@
+{
+    "taskname": "Muon0_Run2026D_ALCARECO_Tight",
+    "job_template": "slurm_jobscript.sh",
+    "sample": "/Muon0/Run2026D-SiPixelCalSingleMuonTight-PromptReco-v1/ALCARECO",
+    "backup_sample": "/Muon1/Run2026D-SiPixelCalSingleMuonTight-PromptReco-v1/ALCARECO",
+    "maxevents": -1,
+    "outdir": "/pnfs/psi.ch/cms/trivcat/store/user/mrogulji/PhaseINtuplizer/2026/", 
+    "cmsRun_script": "/work/mrogulji/CMSSW_16_0_6/src/SiPixelTools/PhaseIPixelNtuplizer/test/run_PhaseIPixelNtuplizer_Data_2026_160X_cfg.py",
+    "cmssw": "CMSSW_16_0_6",
+    "conditions": "160X_dataRun3_Prompt_v1",
+    "cert": "/work/mrogulji/CMSSW_16_0_6/src/SiPixelTools/PhaseIPixelNtuplizer/test/batch/Cert_Collisions2026_Golden_jsons/Cert_Collisions2026_Golden.json",
+    "datatier": "ALCARECO",
+    "era": "Run2026D",
+    "runs": [403461, 403461]
+}
