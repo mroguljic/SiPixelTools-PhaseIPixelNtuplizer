@@ -82,6 +82,7 @@ parser.add_option("--status",      dest="status",      action="store_true", defa
 parser.add_option("--missing",     dest="missing",     action="store_true", default=False, help="look for missing jobs")
 parser.add_option("--hadd",        dest="hadd",        action="store_true", default=False, help="Submit hadding job")
 parser.add_option("--step_two",    dest="step_2",      action="store_true", default=False, help="Option to merge merged outputs")
+parser.add_option("--per_file",    dest="per_file",    action="store_true", default=False, help="Create one job per input file (instead of one job per run)")
 parser.add_option("--queue",       dest="queue",       type="string",       default="standard", help="slurm queue to submit jobs to, default: standard, if this needs to be changed one should also have a look at the --time option")
 parser.add_option("--time",        dest="time",        type="string",       default="12:00:00", help="slurm job time limit, default: 12:00:00, make sure not to exceed time limit for each partition (for limits ref to https://wiki.chipp.ch/twiki/bin/view/CmsTier3/SlurmUsage) ")
 parser.add_option("--debug",       dest="debug",       action="store_true", default=False, help="Debug verbosity and skip removing of some intermediate files")
@@ -171,6 +172,26 @@ if opt.create:
                         os.system("dasgoclient -query=\"file dataset="+samp+" run="+run+"\" >> filelists/input_run"+run+".txt")
             else:
                 os.system("dasgoclient -query=\"file dataset="+metadata["backup_sample"]+" run="+run+"\" > filelists/input_run"+run+".txt")
+
+    if opt.per_file:
+        split_lists = []
+        for run in runs:
+            run = str(run)
+            run_filelist = "filelists/input_run"+run+".txt"
+            if not os.path.isfile(run_filelist):
+                continue
+            with open(run_filelist) as file_list:
+                files = [line.strip() for line in file_list.readlines() if line.strip()]
+            for file_idx, file_name in enumerate(files, start=1):
+                split_name = "filelists/input_run"+run+"_file"+str(file_idx).zfill(4)+".txt"
+                with open(split_name, "w") as split_file:
+                    split_file.write(file_name+"\n")
+                split_lists.append(split_name)
+            os.remove(run_filelist)
+
+        if len(split_lists) == 0:
+            KILL("no input files found while using --per_file")
+
     os.system("cp "+metadata["job_template"]+" "+EXEC_PATH+"/slurm_jobscript.sh")
 
     if opt.queue != "standard":
@@ -181,6 +202,20 @@ if opt.create:
         os.system("mv tmp slurm_jobscript.sh")
     os.system("cp "+cert_filename+" "+EXEC_PATH+"/")
 
+    if opt.per_file:
+        job_input_files = sorted([os.path.basename(path) for path in glob.glob("filelists/input_run*_file*.txt")])
+    else:
+        job_input_files = sorted([os.path.basename(path) for path in glob.glob("filelists/input_run*.txt")])
+
+    if len(job_input_files) == 0:
+        KILL("no input filelists were created")
+
+    with open("filelists/job_list.txt", "w") as job_list_file:
+        for file_name in job_input_files:
+            job_list_file.write(file_name+"\n")
+
+    n_jobs = len(job_input_files)
+
     # Summary file
     os.system("echo \"NTuple conversion process for "+metadata["taskname"]+" summary\" > "+EXEC_PATH+"/summary.txt")
     os.system("echo \"\" >> "+EXEC_PATH+"/summary.txt")
@@ -188,17 +223,16 @@ if opt.create:
     os.system("echo \"Output dir: "+metadata["outdir"]+"\" >> "+EXEC_PATH+"/summary.txt")
     os.system("echo \"Input filelists in : filelists/input*.txt\" >> "+EXEC_PATH+"/summary.txt")
     os.system("echo \"Slurm jobs template: slurm_jobscript.sh\" >> "+EXEC_PATH+"/summary.txt")
-    os.system("echo \"Number of jobs: "+str(len(runs))+"\" >> "+EXEC_PATH+"/summary.txt")
+    os.system("echo \"Number of jobs: "+str(n_jobs)+"\" >> "+EXEC_PATH+"/summary.txt")
     
     print()
     print ("-"*80)
-    print ("number of jobs: ", len(runs))
+    print ("number of jobs: ", n_jobs)
     
     # Prepare submission script with "sbatch [job name] [out-log] [out-err] slurm_jobscript.sh [GoodLumi.json path] [job_label] [input_files_list] [output dir] [other self explanatory options for cmsDriver]  
     print ("")
     if cert_filename == "": cert_filename = "DUMMY"
     print ("Job Script file: "+color_dict["blue"]+metadata["job_template"]+color_dict["end"])
-    os.system("ls -l filelists | awk '{ print $NF }' | tail -n +2 | head -n -1 > filelists/job_list.txt")
     os.system("cat -n filelists/job_list.txt | awk '{ printf \"%.4d %s\\n\", $1, $2 }' | awk '{ print \"sbatch --job-name="+metadata["taskname"]+"_\"$1\" -o /work/%u/test/.slurm/%x_%A_\"$1\".out -e /work/%u/test/.slurm/%x_%A_\"$1\".err slurm_jobscript.sh "+metadata["taskname"]+"_\"$1\" "+metadata["cmssw"]+" "+metadata["outdir"]+"/"+metadata["taskname"]+"  \"$1\" "+metadata["datatier"]+" "+metadata["conditions"]+" "+metadata["cmsRun_script"]+" "+cert_filename+" "+EXEC_PATH+"/filelists/\"$2\"\"}' > alljobs.sh")
     os.system("head -1 alljobs.sh | sed \"s;0001;test;g;\" > test.sh")
 
