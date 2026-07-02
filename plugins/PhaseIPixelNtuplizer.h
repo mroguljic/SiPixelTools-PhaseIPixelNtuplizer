@@ -351,6 +351,8 @@ private:
                                        const edm::Handle<edm::SimTrackContainer>&,
 				       TTree*);
 
+  void buildAndWriteEfficiencies(const Long64_t t_minEntry,const Long64_t t_maxEntry);
+
   std::vector<TrajectoryMeasurement> getLayer1ExtrapolatedHitsFromMeas(const TrajectoryMeasurement&);
 
   enum TrajectoryMeasurementEfficiencyQualification

@@ -329,6 +329,10 @@ void PhaseIPixelNtuplizer::endJob()
 #endif
   std::cout << "Writing plots to file: \"" << ntupleOutputFilename_ << "\"." << std::endl;
   ntupleOutputFile_ -> Write();
+
+  std::cout << "Generating ROC efficiency tree for the whole dataset..." << std::endl;
+  buildAndWriteEfficiencies(0, trajTree_ -> GetEntries());
+
   std::cout << "Closing file: \"" << ntupleOutputFilename_ << "\"." << std::endl;
   ntupleOutputFile_ -> Close();
 }
@@ -587,6 +591,7 @@ void PhaseIPixelNtuplizer::setTriggerTable() {
     for(size_t i = 0; i < triggerNames_.size(); i++) std::cout << triggerNames_[i] << " ";
     std::cout << std::endl;
   } else {
+    std::cout << "Using default trigger names: HLT_ZeroBias_v, HLT_Random_v" << std::endl;
     triggerNames_.push_back("HLT_ZeroBias_v");
     triggerNames_.push_back("HLT_Random_v");
   }
@@ -1701,7 +1706,7 @@ PhaseIPixelNtuplizer::TrajectoryMeasurementEfficiencyQualification PhaseIPixelNt
       (track_.validbpix[1] > 0 && track_.validbpix[2] > 0 && track_.validbpix[3] > 0) ||
       (track_.validbpix[1] > 0 && track_.validbpix[2] > 0 && track_.validfpix[0] > 0) ||
       (track_.validbpix[1] > 0 && track_.validfpix[0] > 0 && track_.validfpix[1] > 0) ||
-      (track_.validfpix[0] > 0 && track_.validfpix[2] > 0 && track_.validfpix[2] > 0))) return EXCLUDED;
+      (track_.validfpix[0] > 0 && track_.validfpix[1] > 0 && track_.validfpix[2] > 0))) return EXCLUDED;
     if(traj_.mod_on.layer == 2) if(!(
       (track_.validbpix[0] > 0 && track_.validbpix[2] > 0 && track_.validbpix[3] > 0) ||
       (track_.validbpix[0] > 0 && track_.validbpix[2] > 0 && track_.validfpix[0] > 0) ||
@@ -1728,7 +1733,7 @@ PhaseIPixelNtuplizer::TrajectoryMeasurementEfficiencyQualification PhaseIPixelNt
   if(traj_.mod_on.det == 0)
   {
     if(!(std::abs(traj_.lx) < BARREL_MODULE_EDGE_X_CUT)) return EXCLUDED;
-    if(!(std::abs(traj_.lx) < BARREL_MODULE_EDGE_Y_CUT)) return EXCLUDED;
+    if(!(std::abs(traj_.ly) < BARREL_MODULE_EDGE_Y_CUT)) return EXCLUDED;
   }
   // Hitsep cut
   if(traj_.d_tr < MEAS_HITSEP_CUT_VAL) return EXCLUDED;
@@ -1836,11 +1841,11 @@ void PhaseIPixelNtuplizer::getDisk1PropagationData(const edm::Handle<TrajTrackAs
 std::vector<TEfficiency> PhaseIPixelNtuplizer::getDetectorPartEfficienciesInTrajTreeEntryRange(const TrajMeasurement& t_trajField, const Long64_t& t_minEntry, const Long64_t& t_maxEntry)
 {
   std::vector<TEfficiency> detectorPartEfficiencies;
-  detectorPartEfficiencies.emplace_back("ROC eff. - forward", "ROC eff. - forward",  112, -3.5, 3.5, 140, -17.5, 17.5);
-  detectorPartEfficiencies.emplace_back("ROC eff. - layer 1", "ROC eff. - layer 1",   72, -4.5, 4.5,  26,  -6.5,  6.5);
-  detectorPartEfficiencies.emplace_back("ROC eff. - layer 2", "ROC eff. - layer 2",   72, -4.5, 4.5,  58, -14.5, 14.5);
-  detectorPartEfficiencies.emplace_back("ROC eff. - layer 3", "ROC eff. - layer 3",   72, -4.5, 4.5,  90, -22.5, 22.5);
-  detectorPartEfficiencies.emplace_back("ROC eff. - layer 4", "ROC eff. - layer 4",   72, -4.5, 4.5, 130, -32.5, 32.5);
+  detectorPartEfficiencies.emplace_back("eff_fpix", "ROC eff. - forward",  112, -3.5, 3.5, 140, -17.5, 17.5);
+  detectorPartEfficiencies.emplace_back("eff_l1", "ROC eff. - layer 1",   72, -4.5, 4.5,  26,  -6.5,  6.5);
+  detectorPartEfficiencies.emplace_back("eff_l2", "ROC eff. - layer 2",   72, -4.5, 4.5,  58, -14.5, 14.5);
+  detectorPartEfficiencies.emplace_back("eff_l3", "ROC eff. - layer 3",   72, -4.5, 4.5,  90, -22.5, 22.5);
+  detectorPartEfficiencies.emplace_back("eff_l4", "ROC eff. - layer 4",   72, -4.5, 4.5, 130, -32.5, 32.5);
   std::vector<std::ofstream> fillPrintouts;
   // static int i = 0;
   // fillPrintouts.emplace_back("entries_fwd" + std::to_string(i) + ".txt", std::ios::out | std::ios::app);
@@ -1853,11 +1858,20 @@ std::vector<TEfficiency> PhaseIPixelNtuplizer::getDetectorPartEfficienciesInTraj
   {
     trajTree_ -> GetEntry(entryIndex);
     if(t_trajField.pass_effcuts == EXCLUDED) continue;
+    if (t_trajField.mod_on.det != 1) { //Sanity check, if BPIX, layer should be 1-4
+    if (t_trajField.mod_on.layer < 1 || t_trajField.mod_on.layer > 4)
+        continue;
+    }
+    // mod_on.det == 0/1 for BPIX/FPIX; index 0 for FPIX, index 1--4 for BPIX layers 1--4
     int efficiencyHistogramIndex = t_trajField.mod_on.det == 1 ? 0 : t_trajField.mod_on.layer;
     int validMissing = 0;
-    if(t_trajField.validhit || (t_trajField.missing && 0 < t_trajField.d_cl && (t_trajField.d_cl < HIT_CLUST_NEAR_CUT_VAL))) validMissing = 1;
-    if(efficiencyHistogramIndex == 0) detectorPartEfficiencies[efficiencyHistogramIndex].Fill(validMissing, t_trajField.mod_on.module_coord, t_trajField.mod_on.ladder_coord);
-    else                              detectorPartEfficiencies[efficiencyHistogramIndex].Fill(validMissing, t_trajField.mod_on.disk_ring_coord, t_trajField.mod_on.blade_panel_coord);
+    if(t_trajField.validhit || (t_trajField.missing && 0. < t_trajField.d_cl && (t_trajField.d_cl < HIT_CLUST_NEAR_CUT_VAL))) validMissing = 1;
+    if(efficiencyHistogramIndex == 0){ // FPIX
+      detectorPartEfficiencies[efficiencyHistogramIndex].Fill(validMissing, t_trajField.mod_on.disk_ring_coord, t_trajField.mod_on.blade_panel_coord);
+    }
+    else{ // BPIX Layers 1--4
+      detectorPartEfficiencies[efficiencyHistogramIndex].Fill(validMissing, t_trajField.mod_on.module_coord, t_trajField.mod_on.ladder_coord);
+    }
     // (fillPrintouts[efficiencyHistogramIndex]) << 
     //   "t_trajField.mod_on.module_coord: " << std::setw(4) << std::setprecision(3) << t_trajField.mod_on.module_coord << " " <<
     //   "t_trajField.mod_on.ladder_coord: " << std::setw(4) << std::setprecision(3) << t_trajField.mod_on.ladder_coord << " " <<
@@ -1874,7 +1888,12 @@ void PhaseIPixelNtuplizer::generateROCEfficiencyTree()
   TrajMeasurement trajField;
   trajTree_ -> SetBranchAddress("traj",   &trajField);
   trajTree_ -> SetBranchAddress("mod_on", &trajField.mod_on);
-  std::vector<TEfficiency> detectorPartEfficiencies { getDetectorPartEfficienciesInTrajTreeEntryRange(trajField, numEntriesWithAssociatedEfficiency, trajTreeNumEntries) };
+  std::vector<TEfficiency> detectorPartEfficiencies = getDetectorPartEfficienciesInTrajTreeEntryRange(trajField, numEntriesWithAssociatedEfficiency, trajTreeNumEntries);
+  ntupleOutputFile_->ls();
+  ntupleOutputFile_->cd();
+  for (auto& eff : detectorPartEfficiencies) eff.Write();
+  // [Matej]The logic below eludes me, storing efficiency of a ROC for **EACH TRACK**. Seems terribly redundant and looks like unfinished refactor? So I commented it out
+  /*
   // for(const TEfficiency& efficiency: detectorPartEfficiencies)
   // {
   //   static int i = 0;
@@ -1885,6 +1904,8 @@ void PhaseIPixelNtuplizer::generateROCEfficiencyTree()
   //   const_cast<TH1*>(efficiency.GetTotalHistogram()) -> Draw("COLZ");
   //   canvas.SaveAs((std::to_string(i++) + ".eps").c_str());
   // }
+  std::cout << "trajROCEfficiencyTree_ has " << numEntriesWithAssociatedEfficiency << " entries with associated efficiency." << std::endl;
+  std::cout << "trajTree_ has " << trajTreeNumEntries << " entries." << std::endl;
   for(Long64_t entryIndex = numEntriesWithAssociatedEfficiency; entryIndex < trajTreeNumEntries; ++entryIndex)
   {
     trajTree_ -> GetEntry(entryIndex);
@@ -1895,7 +1916,7 @@ void PhaseIPixelNtuplizer::generateROCEfficiencyTree()
       if(efficiencyHistogramIndex) return detectorPartEfficiencies[efficiencyHistogramIndex].GetGlobalBin(trajField.mod_on.disk_ring_coord, trajField.mod_on.blade_panel_coord);
       return detectorPartEfficiencies[efficiencyHistogramIndex].GetGlobalBin(trajField.mod_on.module_coord, trajField.mod_on.ladder_coord);
     } ();
-    const Int_t& rowLengthBins = efficiencyHistogramIndex ? 112 : 72;
+    const Int_t rowLengthBins = efficiencyHistogramIndex ? 112 : 72;
     const bool isOddHalf = (globalROCBin / rowLengthBins) % 2; // Make sure this is integer division
     const Int_t rowStartBin = globalROCBin - globalROCBin % 8;
     const Int_t moduleOtherRowStartBin = isOddHalf ? rowStartBin + rowLengthBins  : rowStartBin - rowLengthBins;
@@ -1939,7 +1960,86 @@ void PhaseIPixelNtuplizer::generateROCEfficiencyTree()
   {
     e.Delete();
   });
-  detectorPartEfficiencies.clear();
+  detectorPartEfficiencies.clear();*/
+}
+
+void PhaseIPixelNtuplizer::buildAndWriteEfficiencies(
+    const Long64_t t_minEntry,
+    const Long64_t t_maxEntry)
+{
+    std::vector<std::unique_ptr<TEfficiency>> effs;
+    effs.reserve(5);
+
+    effs.push_back(std::make_unique<TEfficiency>(
+        "eff_fpix", "ROC eff. - forward",
+        112, -3.5, 3.5,
+        140, -17.5, 17.5));
+
+    effs.push_back(std::make_unique<TEfficiency>(
+        "eff_l1", "ROC eff. - layer 1",
+        72, -4.5, 4.5,
+        26, -6.5, 6.5));
+
+    effs.push_back(std::make_unique<TEfficiency>(
+        "eff_l2", "ROC eff. - layer 2",
+        72, -4.5, 4.5,
+        58, -14.5, 14.5));
+
+    effs.push_back(std::make_unique<TEfficiency>(
+        "eff_l3", "ROC eff. - layer 3",
+        72, -4.5, 4.5,
+        90, -22.5, 22.5));
+
+    effs.push_back(std::make_unique<TEfficiency>(
+        "eff_l4", "ROC eff. - layer 4",
+        72, -4.5, 4.5,
+        130, -32.5, 32.5));
+
+    TrajMeasurement trajField;
+    trajTree_->SetBranchAddress("traj", &trajField);
+    trajTree_->SetBranchAddress("mod_on", &trajField.mod_on);
+
+    for (Long64_t i = t_minEntry; i < t_maxEntry; ++i)
+    {
+        trajTree_->GetEntry(i);
+
+        if (trajField.pass_effcuts == EXCLUDED)
+            continue;
+
+        if (trajField.mod_on.det != 1)
+        {
+            if (trajField.mod_on.layer < 1 || trajField.mod_on.layer > 4)
+                continue;
+        }
+
+        int idx = (trajField.mod_on.det == 1) ? 0 : trajField.mod_on.layer;
+
+        bool validMissing =
+            trajField.validhit ||
+            (trajField.missing &&
+             trajField.d_cl > 0. &&
+             trajField.d_cl < HIT_CLUST_NEAR_CUT_VAL);
+
+        if (idx == 0)
+        {
+            effs[idx]->Fill(validMissing,
+                            trajField.mod_on.disk_ring_coord,
+                            trajField.mod_on.blade_panel_coord);
+        }
+        else
+        {
+            effs[idx]->Fill(validMissing,
+                            trajField.mod_on.module_coord,
+                            trajField.mod_on.ladder_coord);
+        }
+    }
+
+    ntupleOutputFile_->cd();
+
+    for (auto& e : effs)
+    {
+        e->Write();
+    }
 }
 
 //////////////////////////////
