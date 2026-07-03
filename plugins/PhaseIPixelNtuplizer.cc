@@ -1684,7 +1684,7 @@ PhaseIPixelNtuplizer::TrajectoryMeasurementEfficiencyQualification PhaseIPixelNt
   // Nvtx Cut
   if(!(VERTEX_NUMTRACK_CUT_VAL < track_.fromVtxNtrk)) return EXCLUDED;
   // Zerobias cut
-  if(!(evt_.trig & ZEROBIAS_BITMASK >> ZEROBIAS_TRIGGER_BIT)) return EXCLUDED;
+  if(!(evt_.trig & ZEROBIAS_BITMASK)) return EXCLUDED;
   // Federr cut
   if(!(evt_.federrs_size == 0)) return EXCLUDED;
   // Hp cut
@@ -1740,7 +1740,8 @@ PhaseIPixelNtuplizer::TrajectoryMeasurementEfficiencyQualification PhaseIPixelNt
   // Valmis cut
   if(traj_.missing)
   {
-    if((0 < traj_.d_cl) && (traj_.d_cl < HIT_CLUST_NEAR_CUT_VAL)) return VALIDHIT;
+    //if((0 < traj_.d_cl) && (traj_.d_cl < HIT_CLUST_NEAR_CUT_VAL)) return VALIDHIT; // Originally used by Ntuplizer
+    if((0 < traj_.d_cl) && (traj_.dx_cl < HIT_CLUST_NEAR_CUT_VAL && traj_.dy_cl < HIT_CLUST_NEAR_CUT_VAL)) return VALIDHIT; // Used in DQM
     return MISSING;
   }
   else if(traj_.validhit)

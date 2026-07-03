@@ -143,7 +143,7 @@ class PhaseIPixelNtuplizer : public edm::EDAnalyzer
     static constexpr float                TRACK_DZ_CUT_BARREL_VAL        = 0.01f;
     static constexpr float                TRACK_DZ_CUT_FORWARD_VAL       = 0.5f;
     static constexpr float                MEAS_HITSEP_CUT_VAL            = 0.01f; //  100 um
-    static constexpr float                HIT_CLUST_NEAR_CUT_VAL         = 0.10f; // 1000 um
+    static constexpr float                HIT_CLUST_NEAR_CUT_VAL         = 0.02f; // 1000 um standard, 200um DQM
     static constexpr float                BARREL_MODULE_EDGE_X_CUT       = 0.6f;
     static constexpr float                BARREL_MODULE_EDGE_Y_CUT       = 3.0f;
 
