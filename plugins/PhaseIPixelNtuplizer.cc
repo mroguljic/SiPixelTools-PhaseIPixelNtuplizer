@@ -1313,17 +1313,31 @@ PhaseIPixelNtuplizer::getTrajTrackData( const edm::Handle<reco::VertexCollection
     std::vector<TrajectoryMeasurement> extrapolatedHitsOnLayer1
       (getLayer1ExtrapolatedHitsFromMeas(*lastNonLayer1TrajMeasurementIt));
 
-    // Save  all propagated hits
-    //for(auto measurementIt = extrapolatedHitsOnLayer1.begin();
-    //    measurementIt != extrapolatedHitsOnLayer1.end(); measurementIt++)
-    //  checkAndSaveTrajMeasurementData(*measurementIt, clusterCollectionHandle,
-    //    			      trajTrackCollectionHandle, track,
-    //                                  simTracksHandle, trajTree_);
+    // Loop over ALL propagated hits and deduplicate by detector ID
+    // Store (detId -> best_measurement) map to handle multiple compatible hits on same module
+    // best_measurement is VALID if exists, first measurement on detID otherwise
+    std::map<uint32_t, const TrajectoryMeasurement*> layer1HitsByDetId;
     
-    // Save first hit along trajectory
-    //std::cout<<"Nmeas="<<extrapolatedHitsOnLayer1.size()<<std::endl;
-    if (!extrapolatedHitsOnLayer1.empty()) {
-      checkAndSaveTrajMeasurementData(extrapolatedHitsOnLayer1.front(), clusterCollectionHandle,
+    for(const auto& measurement : extrapolatedHitsOnLayer1) {
+      uint32_t detId = measurement.recHit()->geographicalId().rawId();
+      
+      // Skip if we already have a hit on this module
+      if(layer1HitsByDetId.find(detId) != layer1HitsByDetId.end()) {
+        // If current measurement is valid and previous was not, replace it
+        if(measurement.recHit()->getType() == TrackingRecHit::valid &&
+           layer1HitsByDetId[detId]->recHit()->getType() != TrackingRecHit::valid) {
+          layer1HitsByDetId[detId] = &measurement;
+        }
+        continue;
+      }
+      
+      layer1HitsByDetId[detId] = &measurement;
+    }
+    
+    // Only process propagated hits if there is exactly ONE unique module candidate
+    // If there are N candidate modules, only one can be correct and we would end up with N-1 missing hits
+    if(layer1HitsByDetId.size() == 1) {
+      checkAndSaveTrajMeasurementData(*layer1HitsByDetId.begin()->second, clusterCollectionHandle,
                                       trajTrackCollectionHandle, track,
                                       simTracksHandle, trajTree_);
     }
