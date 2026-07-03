@@ -332,12 +332,10 @@ void PhaseIPixelNtuplizer::endJob()
 
   if (nonPropagatedExtraTrajTree_ != nullptr) {
     std::cout << "Generating ROC efficiency tree for the non-propagated extra trajectory tree..." << std::endl;
-    buildAndWriteEfficiencies(0, nonPropagatedExtraTrajTree_ -> GetEntries(), nonPropagatedExtraTrajTree_);
+    buildAndWriteEfficiencies(0, nonPropagatedExtraTrajTree_ -> GetEntries(), nonPropagatedExtraTrajTree_, std::string("nonProp"));
   }
-  else {
-    std::cout << "Generating ROC efficiency tree for the propagated trajectory tree..." << std::endl;
-    buildAndWriteEfficiencies(0, trajTree_ -> GetEntries(), trajTree_);
-  }
+  std::cout << "Generating ROC efficiency tree for the propagated trajectory tree..." << std::endl;
+  buildAndWriteEfficiencies(0, trajTree_ -> GetEntries(), trajTree_, std::string(""));
 
   std::cout << "Closing file: \"" << ntupleOutputFilename_ << "\"." << std::endl;
   ntupleOutputFile_ -> Close();
@@ -1987,33 +1985,35 @@ void PhaseIPixelNtuplizer::generateROCEfficiencyTree()
 void PhaseIPixelNtuplizer::buildAndWriteEfficiencies(
     const Long64_t t_minEntry,
     const Long64_t t_maxEntry,
-    TTree* treeWithTrajectories)
+    TTree* treeWithTrajectories,
+    std::string label
+  )
 {
     std::vector<std::unique_ptr<TEfficiency>> effs;
     effs.reserve(5);
 
     effs.push_back(std::make_unique<TEfficiency>(
-        "eff_fpix", "ROC eff. - forward",
+        ("eff_fpix_" + label).c_str(), ("ROC eff. - forward " + label).c_str(),
         112, -3.5, 3.5,
         140, -17.5, 17.5));
 
     effs.push_back(std::make_unique<TEfficiency>(
-        "eff_l1", "ROC eff. - layer 1",
+        ("eff_l1_" + label).c_str(), ("ROC eff. - layer 1 " + label).c_str(),
         72, -4.5, 4.5,
         26, -6.5, 6.5));
 
     effs.push_back(std::make_unique<TEfficiency>(
-        "eff_l2", "ROC eff. - layer 2",
+        ("eff_l2_" + label).c_str(), ("ROC eff. - layer 2 " + label).c_str(),
         72, -4.5, 4.5,
         58, -14.5, 14.5));
 
     effs.push_back(std::make_unique<TEfficiency>(
-        "eff_l3", "ROC eff. - layer 3",
+        ("eff_l3_" + label).c_str(), ("ROC eff. - layer 3 " + label).c_str(),
         72, -4.5, 4.5,
         90, -22.5, 22.5));
 
     effs.push_back(std::make_unique<TEfficiency>(
-        "eff_l4", "ROC eff. - layer 4",
+        ("eff_l4_" + label).c_str(), ("ROC eff. - layer 4 " + label).c_str(),
         72, -4.5, 4.5,
         130, -32.5, 32.5));
 
