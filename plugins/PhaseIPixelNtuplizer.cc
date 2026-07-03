@@ -330,8 +330,14 @@ void PhaseIPixelNtuplizer::endJob()
   std::cout << "Writing plots to file: \"" << ntupleOutputFilename_ << "\"." << std::endl;
   ntupleOutputFile_ -> Write();
 
-  std::cout << "Generating ROC efficiency tree for the whole dataset..." << std::endl;
-  buildAndWriteEfficiencies(0, trajTree_ -> GetEntries());
+  if (nonPropagatedExtraTrajTree_ != nullptr) {
+    std::cout << "Generating ROC efficiency tree for the non-propagated extra trajectory tree..." << std::endl;
+    buildAndWriteEfficiencies(0, nonPropagatedExtraTrajTree_ -> GetEntries(), nonPropagatedExtraTrajTree_);
+  }
+  else {
+    std::cout << "Generating ROC efficiency tree for the propagated trajectory tree..." << std::endl;
+    buildAndWriteEfficiencies(0, trajTree_ -> GetEntries(), trajTree_);
+  }
 
   std::cout << "Closing file: \"" << ntupleOutputFilename_ << "\"." << std::endl;
   ntupleOutputFile_ -> Close();
@@ -1966,7 +1972,8 @@ void PhaseIPixelNtuplizer::generateROCEfficiencyTree()
 
 void PhaseIPixelNtuplizer::buildAndWriteEfficiencies(
     const Long64_t t_minEntry,
-    const Long64_t t_maxEntry)
+    const Long64_t t_maxEntry,
+    TTree* treeWithTrajectories)
 {
     std::vector<std::unique_ptr<TEfficiency>> effs;
     effs.reserve(5);
@@ -1997,13 +2004,12 @@ void PhaseIPixelNtuplizer::buildAndWriteEfficiencies(
         130, -32.5, 32.5));
 
     TrajMeasurement trajField;
-    trajTree_->SetBranchAddress("traj", &trajField);
-    trajTree_->SetBranchAddress("mod_on", &trajField.mod_on);
+    treeWithTrajectories->SetBranchAddress("traj", &trajField);
+    treeWithTrajectories->SetBranchAddress("mod_on", &trajField.mod_on);
 
     for (Long64_t i = t_minEntry; i < t_maxEntry; ++i)
     {
-        trajTree_->GetEntry(i);
-
+        treeWithTrajectories->GetEntry(i);
         if (trajField.pass_effcuts == EXCLUDED)
             continue;
 
