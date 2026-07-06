@@ -145,7 +145,8 @@ class PhaseIPixelNtuplizer : public edm::EDAnalyzer
     static constexpr float                MEAS_HITSEP_CUT_VAL            = 0.01f; //  100 um
     static constexpr float                HIT_CLUST_NEAR_CUT_VAL         = 0.02f; // 1000 um standard, 200um DQM
     static constexpr float                BARREL_MODULE_EDGE_X_CUT       = 0.6f;
-    static constexpr float                BARREL_MODULE_EDGE_Y_CUT       = 3.0f;
+    static constexpr float                BARREL_MODULE_EDGE_Y_CUT       = 3.0f; // Not used for the moment, sine we switched to ROC-level fiducial cuts
+    static constexpr int                  ROC_FIDUCIAL_CUT_PIXELS        = 10; 
 
 public:
   PhaseIPixelNtuplizer(edm::ParameterSet const& iConfig);
@@ -363,6 +364,8 @@ private:
   };
 
   TrajectoryMeasurementEfficiencyQualification getTrajMeasurementEfficiencyQualification(const TrajectoryMeasurement& t_measurement);
+
+  bool passesROCFiducialCut(const DetId& detId, const LocalPoint& localPos);
 
   void getDisk1PropagationData(const edm::Handle<TrajTrackAssociationCollection>&);
 

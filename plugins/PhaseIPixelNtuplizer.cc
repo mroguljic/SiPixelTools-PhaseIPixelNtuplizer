@@ -1561,8 +1561,24 @@ void PhaseIPixelNtuplizer::checkAndSaveTrajMeasurementData
 
   // Get correct coordinates for non-valid hits
   else {
-    int row = std::max(0, std::min(159, static_cast<int>((localPosition.x() / 0.81 + 1) * 80)));
-    int col = std::max(0, std::min(415, static_cast<int>((localPosition.y() / 0.81 + 4) * 52)));
+    // Use geometry to get pixel coordinates instead of hardcoding values
+    const GeomDetUnit* geomDetUnit = trackerGeometry_->idToDetUnit(detId);
+    const PixelGeomDetUnit* pixelGeomDetUnit = dynamic_cast<const PixelGeomDetUnit*>(geomDetUnit);
+    
+    int row = 0, col = 0;
+    if (pixelGeomDetUnit) {
+      const PixelTopology& topology = pixelGeomDetUnit->specificTopology();
+      MeasurementPoint measurementPoint = topology.measurementPosition(localPosition);
+
+      // Get global module-level pixel coordinates (for SiPixelCoordinates methods)
+      // These are used by getRocData() to compute module/ladder/ROC positions
+      row = std::max(0, std::min(topology.nrows() - 1, static_cast<int>(measurementPoint.x())));
+      col = std::max(0, std::min(topology.ncolumns() - 1, static_cast<int>(measurementPoint.y())));
+    }
+    else{
+      std::cerr << "Error: GeomDetUnit is not a PixelGeomDetUnit for detId " << detId.rawId() << std::endl;
+    }
+    
     PixelDigi missing_hit(row, col, 0);
     getRocData(traj_.mod,    0, detId, &missing_hit);
     getRocData(traj_.mod_on, 1, detId, &missing_hit);
@@ -1697,6 +1713,46 @@ std::vector<TrajectoryMeasurement> PhaseIPixelNtuplizer::getLayer1ExtrapolatedHi
   					   *trackerPropagator_, *chi2MeasurementEstimator_);
 }
 
+bool PhaseIPixelNtuplizer::passesROCFiducialCut(const DetId& detId, const LocalPoint& localPos)
+{
+  // ROC-level fiducial cut: only count central pixels within each ROC
+  // Must use same coordinate system as used in checkAndSaveTrajMeasurementData() for consistency
+  const GeomDetUnit* geomDetUnit = trackerGeometry_->idToDetUnit(detId);
+  if (!geomDetUnit) return false;
+  
+  const PixelGeomDetUnit* pixelGeomDetUnit = dynamic_cast<const PixelGeomDetUnit*>(geomDetUnit);
+  if (!pixelGeomDetUnit) return false;
+  
+  const PixelTopology& topology = pixelGeomDetUnit->specificTopology();
+  
+  // Convert local position to pixel coordinates
+  MeasurementPoint measurementPoint = topology.measurementPosition(localPos);
+  
+  int nRows = topology.rowsperroc();
+  int nCols = topology.colsperroc();
+
+  // Get global module-level pixel coordinates (same as stored in ntuple)
+  int globalRow = std::max(0, std::min(topology.nrows() - 1, static_cast<int>(measurementPoint.x())));
+  int globalCol = std::max(0, std::min(topology.ncolumns() - 1, static_cast<int>(measurementPoint.y())));
+  
+  // Convert to per-ROC coordinates for fiducial cut
+  int row = globalRow % nRows;
+  int col = globalCol % nCols;
+  if (row < 0) row += nRows;
+  if (col < 0) col += nCols;
+  
+  // Apply fiducial cut: keep only central +/-ROC_FIDUCIAL_CUT_PIXELS pixels of each ROC
+  int centerrow = nRows / 2;
+  int centercol = nCols / 2;
+  
+  bool passesRowCut = (row >= (centerrow - ROC_FIDUCIAL_CUT_PIXELS)) && 
+                      (row <  (centerrow + ROC_FIDUCIAL_CUT_PIXELS));
+  bool passesColCut = (col >= (centercol - ROC_FIDUCIAL_CUT_PIXELS)) && 
+                      (col <  (centercol + ROC_FIDUCIAL_CUT_PIXELS));
+  
+  return passesRowCut && passesColCut;
+}
+
 PhaseIPixelNtuplizer::TrajectoryMeasurementEfficiencyQualification PhaseIPixelNtuplizer::getTrajMeasurementEfficiencyQualification(const TrajectoryMeasurement& t_measurement)
 {
   // Nvtx Cut
@@ -1747,19 +1803,25 @@ PhaseIPixelNtuplizer::TrajectoryMeasurementEfficiencyQualification PhaseIPixelNt
     if(std::abs(traj_.mod_on.disk) == 3) if(!(
       (track_.validbpix[0] > 0 && track_.validfpix[0] > 0 && track_.validfpix[1] > 0))) return EXCLUDED;
   }
-  // Fidicual cuts
+  // Module-level fiducial cuts turned off
   if(traj_.mod_on.det == 0)
   {
-    if(!(std::abs(traj_.lx) < BARREL_MODULE_EDGE_X_CUT)) return EXCLUDED;
-    if(!(std::abs(traj_.ly) < BARREL_MODULE_EDGE_Y_CUT)) return EXCLUDED;
+    // if(!(std::abs(traj_.lx) < BARREL_MODULE_EDGE_X_CUT)) return EXCLUDED;
+    // if(!(std::abs(traj_.ly) < BARREL_MODULE_EDGE_Y_CUT)) return EXCLUDED;
+    
+    // ROC-level fiducial cut: only count central pixels within each ROC (matches DQM approach)
+    LocalPoint localPos(traj_.lx, traj_.ly, traj_.lz);
+    if(!passesROCFiducialCut(t_measurement.recHit()->geographicalId(), localPos)) return EXCLUDED;
   }
   // Hitsep cut
   if(traj_.d_tr < MEAS_HITSEP_CUT_VAL) return EXCLUDED;
   // Valmis cut
   if(traj_.missing)
   {
-    //if((0 < traj_.d_cl) && (traj_.d_cl < HIT_CLUST_NEAR_CUT_VAL)) return VALIDHIT; // Originally used by Ntuplizer
-    if((0 < traj_.d_cl) && (traj_.dx_cl < HIT_CLUST_NEAR_CUT_VAL && traj_.dy_cl < HIT_CLUST_NEAR_CUT_VAL)) return VALIDHIT; // Used in DQM
+    // A missing hit is considered valid if there's a cluster nearby in both X and Y
+    // This matches the DQM logic: if((minD[0] < 0.02) && (minD[1] < 0.02)) valid = true;
+    if((traj_.dx_cl > 0) && (traj_.dx_cl < HIT_CLUST_NEAR_CUT_VAL) &&
+       (traj_.dy_cl > 0) && (traj_.dy_cl < HIT_CLUST_NEAR_CUT_VAL)) return VALIDHIT;
     return MISSING;
   }
   else if(traj_.validhit)
@@ -2038,8 +2100,10 @@ void PhaseIPixelNtuplizer::buildAndWriteEfficiencies(
         bool validMissing =
             trajField.validhit ||
             (trajField.missing &&
-             trajField.d_cl > 0. &&
-             trajField.d_cl < HIT_CLUST_NEAR_CUT_VAL);
+             trajField.dx_cl > 0. &&
+             trajField.dy_cl > 0. &&
+             trajField.dx_cl < HIT_CLUST_NEAR_CUT_VAL &&
+             trajField.dy_cl < HIT_CLUST_NEAR_CUT_VAL);
 
         if (idx == 0)
         {
