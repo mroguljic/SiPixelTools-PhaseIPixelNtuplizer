@@ -330,15 +330,18 @@ void PhaseIPixelNtuplizer::endJob()
   std::cout << "Writing plots to file: \"" << ntupleOutputFilename_ << "\"." << std::endl;
   ntupleOutputFile_ -> Write();
 
-  if (nonPropagatedExtraTrajTree_ != nullptr) {
+  if (saveNonPropagatedExtraTrajTree_ && nonPropagatedExtraTrajTree_ -> GetEntries() > 0) {
     std::cout << "Generating ROC efficiency tree for the non-propagated extra trajectory tree..." << std::endl;
     buildAndWriteEfficiencies(0, nonPropagatedExtraTrajTree_ -> GetEntries(), nonPropagatedExtraTrajTree_, std::string("nonProp"));
   }
+
+  if (trajTree_ != nullptr && trajTree_ -> GetEntries() > 0) {
   std::cout << "Generating ROC efficiency tree for the propagated trajectory tree..." << std::endl;
   buildAndWriteEfficiencies(0, trajTree_ -> GetEntries(), trajTree_, std::string(""));
 
   std::cout << "Closing file: \"" << ntupleOutputFilename_ << "\"." << std::endl;
   ntupleOutputFile_ -> Close();
+  }
 }
 
 void PhaseIPixelNtuplizer::beginRun(edm::Run const& iRun, edm::EventSetup const& iSetup) {
