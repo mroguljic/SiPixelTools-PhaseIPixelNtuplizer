@@ -1338,7 +1338,14 @@ PhaseIPixelNtuplizer::getTrajTrackData( const edm::Handle<reco::VertexCollection
     // Only process propagated hits if there is exactly ONE unique module candidate
     // If there are N candidate modules, only one can be correct and we would end up with N-1 missing hits
     if(layer1HitsByDetId.size() == 1) {
-      checkAndSaveTrajMeasurementData(*layer1HitsByDetId.begin()->second, clusterCollectionHandle,
+      const TrajectoryMeasurement& propagatedMeasurement = *layer1HitsByDetId.begin()->second;
+      // Emulate the DQM bug in SiPixelPhase1TrackEfficiency
+      // ("if (!pixhit) continue;")
+      constexpr bool emulateDQMPixhitRequirement = true;
+      if(emulateDQMPixhitRequirement &&
+         dynamic_cast<const SiPixelRecHit*>(propagatedMeasurement.recHit()->hit()) == nullptr)
+        continue;
+      checkAndSaveTrajMeasurementData(propagatedMeasurement, clusterCollectionHandle,
                                       trajTrackCollectionHandle, track,
                                       simTracksHandle, trajTree_);
     }
@@ -1949,7 +1956,8 @@ std::vector<TEfficiency> PhaseIPixelNtuplizer::getDetectorPartEfficienciesInTraj
     // mod_on.det == 0/1 for BPIX/FPIX; index 0 for FPIX, index 1--4 for BPIX layers 1--4
     int efficiencyHistogramIndex = t_trajField.mod_on.det == 1 ? 0 : t_trajField.mod_on.layer;
     int validMissing = 0;
-    if(t_trajField.validhit || (t_trajField.missing && 0. < t_trajField.d_cl && (t_trajField.d_cl < HIT_CLUST_NEAR_CUT_VAL))) validMissing = 1;
+    //if(t_trajField.validhit || (t_trajField.missing && 0. < t_trajField.d_cl && (t_trajField.d_cl < HIT_CLUST_NEAR_CUT_VAL))) validMissing = 1;
+    if(t_trajField.validhit && t_trajField.dx_cl < HIT_CLUST_NEAR_CUT_VAL && t_trajField.dy_cl < HIT_CLUST_NEAR_CUT_VAL) validMissing = 1;
     if(efficiencyHistogramIndex == 0){ // FPIX
       detectorPartEfficiencies[efficiencyHistogramIndex].Fill(validMissing, t_trajField.mod_on.disk_ring_coord, t_trajField.mod_on.blade_panel_coord);
     }
@@ -2100,13 +2108,20 @@ void PhaseIPixelNtuplizer::buildAndWriteEfficiencies(
 
         int idx = (trajField.mod_on.det == 1) ? 0 : trajField.mod_on.layer;
 
+        // DQM emulation: require dx_cl && dx_cl < 0.02 to be valid
+        // bool validMissing =
+        //     trajField.validhit ||
+        //     (trajField.missing &&
+        //      trajField.dx_cl > 0. &&
+        //      trajField.dy_cl > 0. &&
+        //      trajField.dx_cl < HIT_CLUST_NEAR_CUT_VAL &&
+        //      trajField.dy_cl < HIT_CLUST_NEAR_CUT_VAL);
         bool validMissing =
-            trajField.validhit ||
-            (trajField.missing &&
-             trajField.dx_cl > 0. &&
-             trajField.dy_cl > 0. &&
-             trajField.dx_cl < HIT_CLUST_NEAR_CUT_VAL &&
-             trajField.dy_cl < HIT_CLUST_NEAR_CUT_VAL);
+            trajField.validhit &&
+            trajField.dx_cl >= 0. &&
+            trajField.dy_cl >= 0. &&
+            trajField.dx_cl < HIT_CLUST_NEAR_CUT_VAL &&
+            trajField.dy_cl < HIT_CLUST_NEAR_CUT_VAL;
 
         if (idx == 0)
         {
