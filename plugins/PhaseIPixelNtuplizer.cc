@@ -1342,6 +1342,12 @@ PhaseIPixelNtuplizer::getTrajTrackData( const edm::Handle<reco::VertexCollection
       // Emulate the DQM bug in SiPixelPhase1TrackEfficiency
       // ("if (!pixhit) continue;")
       constexpr bool emulateDQMPixhitRequirement = true;
+      const auto& rh = propagatedMeasurement.recHit();
+      bool isPixhit = dynamic_cast<const SiPixelRecHit*>(rh->hit()) != nullptr;
+      // std::cout << "propagated hit: type=" << rh->getType()
+      //           << " detId=" << rh->geographicalId().rawId()
+      //           << " castOK=" << isPixhit << std::endl;
+
       if(emulateDQMPixhitRequirement &&
          dynamic_cast<const SiPixelRecHit*>(propagatedMeasurement.recHit()->hit()) == nullptr)
         continue;
@@ -1957,7 +1963,7 @@ std::vector<TEfficiency> PhaseIPixelNtuplizer::getDetectorPartEfficienciesInTraj
     int efficiencyHistogramIndex = t_trajField.mod_on.det == 1 ? 0 : t_trajField.mod_on.layer;
     int validMissing = 0;
     //if(t_trajField.validhit || (t_trajField.missing && 0. < t_trajField.d_cl && (t_trajField.d_cl < HIT_CLUST_NEAR_CUT_VAL))) validMissing = 1;
-    if(t_trajField.validhit && t_trajField.dx_cl < HIT_CLUST_NEAR_CUT_VAL && t_trajField.dy_cl < HIT_CLUST_NEAR_CUT_VAL) validMissing = 1;
+    if(t_trajField.dx_cl < HIT_CLUST_NEAR_CUT_VAL && t_trajField.dy_cl < HIT_CLUST_NEAR_CUT_VAL) validMissing = 1;
     if(efficiencyHistogramIndex == 0){ // FPIX
       detectorPartEfficiencies[efficiencyHistogramIndex].Fill(validMissing, t_trajField.mod_on.disk_ring_coord, t_trajField.mod_on.blade_panel_coord);
     }
@@ -2117,7 +2123,6 @@ void PhaseIPixelNtuplizer::buildAndWriteEfficiencies(
         //      trajField.dx_cl < HIT_CLUST_NEAR_CUT_VAL &&
         //      trajField.dy_cl < HIT_CLUST_NEAR_CUT_VAL);
         bool validMissing =
-            trajField.validhit &&
             trajField.dx_cl >= 0. &&
             trajField.dy_cl >= 0. &&
             trajField.dx_cl < HIT_CLUST_NEAR_CUT_VAL &&
