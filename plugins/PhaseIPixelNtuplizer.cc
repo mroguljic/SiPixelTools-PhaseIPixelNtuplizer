@@ -1341,7 +1341,7 @@ PhaseIPixelNtuplizer::getTrajTrackData( const edm::Handle<reco::VertexCollection
       const TrajectoryMeasurement& propagatedMeasurement = *layer1HitsByDetId.begin()->second;
       // Emulate the DQM bug in SiPixelPhase1TrackEfficiency
       // ("if (!pixhit) continue;")
-      constexpr bool emulateDQMPixhitRequirement = true;
+      constexpr bool emulateDQMPixhitRequirement = false;
       const auto& rh = propagatedMeasurement.recHit();
       bool isPixhit = dynamic_cast<const SiPixelRecHit*>(rh->hit()) != nullptr;
       // std::cout << "propagated hit: type=" << rh->getType()
