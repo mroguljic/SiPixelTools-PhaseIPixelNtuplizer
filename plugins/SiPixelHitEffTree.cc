@@ -26,6 +26,7 @@
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
 #include "FWCore/Utilities/interface/Exception.h"
+#include "FWCore/Utilities/interface/isFinite.h"
 #include "CommonTools/UtilAlgos/interface/TFileService.h"
 
 #include "DataFormats/Common/interface/DetSetVectorNew.h"
@@ -88,6 +89,14 @@ namespace {
     if (fwd.isValid())
       return fwd;
     return TrajectoryStateOnSurface();
+  }
+
+  // A state safe to hand to compatibleDets.
+  // Pathological tracks, covariance not positive definite, or q/p
+  // not finite, can cause segfaults when extrapolating
+  bool usableForPropagation(const TrajectoryStateOnSurface& s) {
+    return s.localError().posDef() && !edm::isNotFinite(s.localParameters().qbp()) &&
+           !edm::isNotFinite(s.globalPosition().perp());
   }
 
   bool isPixel(const DetId& id) {
@@ -321,8 +330,10 @@ void SiPixelHitEffTree::fillRow(const TrajectoryMeasurement& meas,
   const LocalError le = tsos.localError().positionError();
   b_lx_ = lp.x();
   b_ly_ = lp.y();
-  b_lx_err_ = le.xx();
-  b_ly_err_ = le.yy();
+  // LocalError carries the covariance; store sigmas so the branches match their
+  // names and are directly comparable to the residuals in dx_cl / dy_cl.
+  b_lx_err_ = std::sqrt(std::max(0.f, le.xx()));
+  b_ly_err_ = std::sqrt(std::max(0.f, le.yy()));
 
   const bool valid = recHit->getType() == TrackingRecHit::valid;
   const bool missing = recHit->getType() == TrackingRecHit::missing;
@@ -515,7 +526,8 @@ void SiPixelHitEffTree::analyze(const edm::Event& iEvent, const edm::EventSetup&
       const bool isL1 =
           isPixel(id) && (id.subdetId() == PixelSubdetector::PixelBarrel) && (topo.pxbLayer(id) == 1);
 
-      if (!isL1 && id.rawId() != 0 && it->recHit()->isValid() && it->updatedState().isValid()) {
+      if (!isL1 && id.rawId() != 0 && it->recHit()->isValid() && it->updatedState().isValid() &&
+          usableForPropagation(it->updatedState())) {
         const float r = it->updatedState().globalPosition().perp();
         if (r < anchorR) {
           anchorR = r;
