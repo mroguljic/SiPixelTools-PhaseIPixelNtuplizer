@@ -41,8 +41,30 @@
   <use   name="FWCore/Utilities"/>
   <use   name="DataFormats/Luminosity"/>
   <use   name="DQM/SiPixelPhase1Common"/>
+  <!-- additionally needed by SiPixelHitEffTree -->
+  <use   name="FWCore/MessageLogger"/>
+  <use   name="DataFormats/Common"/>
+  <use   name="DataFormats/SiPixelCluster"/>
+  <use   name="DataFormats/TrackerCommon"/>
+  <use   name="CondFormats/SiPixelObjects"/>
+  <use   name="TrackingTools/PatternTools"/>
+  <use   name="TrackingTools/GeomPropagators"/>
+  <use   name="TrackingTools/DetLayers"/>
+  <use   name="TrackingTools/Records"/>
+  <use   name="RecoTracker/Record"/>
+  <use   name="RecoTracker/TkDetLayers"/>
+  <use   name="TrackingTools/TransientTrackingRecHit"/>
+  <use   name="RecoTracker/TransientTrackingRecHit"/>
+  <use   name="RecoLocalTracker/Records"/>
+  <use   name="Geometry/CommonDetUnit"/>
+  <use   name="Geometry/CommonTopologies"/>
   <library   file="PhaseIPixelNtuplizer.cc ../src/*.cc" name="SiPixelToolsPhaseIPixelNtuplizerPlugin">
     <flags CXXFLAGS="-g -D=EDM_ML_DEBUG"/>
+    <flags EDM_PLUGIN="1"/>
+  </library>
+  <!-- Kept as its own library: the hit-efficiency tree is independent of the
+       ntuplizer and does not want its EDM_ML_DEBUG build flags. -->
+  <library   file="SiPixelHitEffTree.cc" name="SiPixelToolsHitEffTreePlugin">
     <flags EDM_PLUGIN="1"/>
   </library>
 </environment>

@@ -1,0 +1,15 @@
+{
+    "taskname": "hitEff_Run2026D",
+    "sample": "/ZeroBias/Run2026D-v1/RAW",
+    "runs": [
+        403461
+    ],
+    "maxevents": 2000,
+    "recipe": "2026",
+    "conditions": "160X_dataRun3_Prompt_v1",
+    "cert": "/work/mrogulji/CMSSW_Ntuplizer_16_0_6/src/SiPixelTools/PhaseIPixelNtuplizer/test/batch/Cert_Collisions2026_Golden_jsons/Collisions26_MLEnhancedGolden_Latest.json",
+    "cmsRun_script": "/work/mrogulji/CMSSW_Ntuplizer_16_0_6/src/SiPixelTools/PhaseIPixelNtuplizer/test/hitEffFromRaw_cfg.py",
+    "cmssw": "CMSSW_16_0_6",
+    "outdir": "/pnfs/psi.ch/cms/trivcat/store/user/mrogulji/PixelHitEff/Run2026D",
+    "walltime": "8:00:00"
+}
